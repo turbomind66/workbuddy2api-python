@@ -15,6 +15,15 @@ from datetime import timedelta
 # 将项目根目录加入 sys.path，保证直接 `python scripts/smoke.py` 可导入 wb2api。
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Windows 默认终端编码为 cp1252，中文输出会抛 UnicodeEncodeError；
+# 强制 stdout/stderr 使用 UTF-8，确保 CI 跨平台稳定。
+for _stream in (sys.stdout, sys.stderr):
+    if getattr(_stream, "encoding", "").lower() not in ("utf-8", "utf8"):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, OSError):
+            pass
+
 _failures = []
 
 
