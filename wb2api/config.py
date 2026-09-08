@@ -22,11 +22,25 @@ _DURATION_UNITS = {
 _DURATION_RE = re.compile(r"(-?\d+(?:\.\d+)?)(ns|us|µs|ms|s|m|h)")
 
 
-def parse_duration(s: str):
+def parse_duration(s):
     """解析 Go 风格时长字符串（如 "60s"、"30m"、"6h"、"1h30m"、"500ms"）。
+
+    兼容三种输入，避免配置文件里写法不同导致类型错误：
+      - 字符串："60s" / "1h30m"（推荐）
+      - 数字：60 → 视为 60 秒（int/float）
+      - timedelta：原样返回
 
     返回 datetime.timedelta。非法输入抛 ValueError。
     """
+    from datetime import timedelta
+
+    if isinstance(s, timedelta):
+        return s
+    if isinstance(s, bool):  # bool 是 int 子类，显式排除
+        raise ValueError(f"invalid duration: {s!r}")
+    if isinstance(s, (int, float)):
+        return timedelta(seconds=float(s))
+
     s = (s or "").strip()
     if not s:
         raise ValueError("empty duration")
@@ -42,8 +56,6 @@ def parse_duration(s: str):
         total += float(val) * _DURATION_UNITS[unit]
     if neg:
         total = -total
-    from datetime import timedelta
-
     return timedelta(seconds=total)
 
 
