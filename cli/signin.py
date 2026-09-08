@@ -38,9 +38,14 @@ def _short(s: str) -> str:
 
 
 def main() -> int:
-    directory = sys.argv[1] if len(sys.argv) > 1 else AUTH_DIR
+    argv = [a for a in sys.argv[1:] if a not in ("--dry-run", "-n")]
+    dry_run = any(a in ("--dry-run", "-n") for a in sys.argv[1:])
+    directory = argv[0] if argv else AUTH_DIR
     files = sorted(glob.glob(os.path.join(directory, "workbuddy-*.json")))
     if not files:
+        if dry_run:
+            print(f"dry-run: no auth files in {directory} (nothing to do)")
+            return 0
         print(f"no auth files in {directory}", file=sys.stderr)
         sys.exit(1)
 
@@ -70,6 +75,13 @@ def main() -> int:
         a.file_path = f
         r["uid"] = a.uid
         r["nick"] = a.nickname
+
+        # dry-run：只做解析 + 刷新判定，不发任何网络请求
+        if dry_run:
+            r["status"] = "DRY-RUN"
+            r["detail"] = "would-refresh" if a.needs_refresh(timedelta(hours=2)) else "token-ok"
+            rows.append(r)
+            continue
 
         # refresh 过期 token
         if a.needs_refresh(timedelta(hours=2)):
