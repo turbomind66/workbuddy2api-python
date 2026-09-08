@@ -5,6 +5,15 @@
 
 ## [Unreleased]
 
+### 新增
+
+- `cli/signin.py` 新增 `--dry-run` 模式：只做凭证解析 + 刷新判定，不发任何网络请求，无凭证时安全退出
+- `scripts/smoke.py`：无网络、无凭证的纯逻辑冒烟测试，锁定时间/类型边界防回归
+
+### 变更
+
+- CI 新增两阶段冒烟：逻辑冒烟（`scripts/smoke.py`）+ CLI dry-run（`cli/signin.py --dry-run`），覆盖此前漏测的 signin 路径
+
 ## [1.0.1] - 2026-09-08
 
 ### 修复
