@@ -5,6 +5,19 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-08
+
+### 修复
+
+- `cli/signin.py` 传 int 秒数给 `Auth.needs_refresh()`，导致签到崩溃
+  （`AttributeError: 'int' object has no attribute 'total_seconds'`）
+- `parse_duration()` 无法解析数字型配置（如 `"soft_rate": 60`），抛 `AttributeError`
+
+### 变更
+
+- `Auth.needs_refresh()` 兼容 `timedelta` / int 秒数两种入参，非法值退化为「已过期才刷新」
+- `parse_duration()` 兼容字符串（`60s`）/ 数字（视为秒）/ `timedelta` 三种入参
+
 ## [1.0.0] - 2026-09-07
 
 由 Go 原版 `workbuddy2api` 完整重写为 Python 3 的首个正式版本。
