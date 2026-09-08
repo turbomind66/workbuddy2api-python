@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile check
+        run: python -m compileall -q cli wb2api
+
+      - name: Import smoke test
+        shell: bash
+        run: |
+          PYTHONPATH=. python -c "
+          import wb2api, wb2api.config, wb2api.auth, wb2api.pool
+          import wb2api.session, wb2api.redisstore, wb2api.scheduler, wb2api.server
+          import wb2api.upstream, wb2api.upstream.client, wb2api.upstream.sse
+          print('import smoke test OK')
+          "
+
+  security:
+    name: Secret & dependency scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for leaked credentials
+        run: |
+          echo "检查是否有凭证文件被误提交..."
+          if git ls-files | grep -E '(^|/)auths/|\.env$|^config\.json$'; then
+            echo "::error::检测到疑似凭证文件被提交到仓库，请立即移除！"
+            exit 1
+          fi
+          echo "未发现凭证文件 ✓"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Dependency vulnerability scan
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt || true
