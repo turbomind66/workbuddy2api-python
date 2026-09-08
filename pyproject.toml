@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "workbuddy2api-python"
+version = "1.0.0"
+description = "OpenAI 兼容的腾讯 Copilot / WorkBuddy 反向代理（Go 原版的 Python 重写）"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "workbuddy2api-python contributors" }]
+keywords = ["openai", "proxy", "workbuddy", "copilot", "sse", "chat-completions"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "requests>=2.28.0",
+    "redis>=4.5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "pytest",
+]
+
+[project.urls]
+Homepage = "https://github.com/turbomind66/workbuddy2api-python"
+Repository = "https://github.com/turbomind66/workbuddy2api-python"
+Issues = "https://github.com/turbomind66/workbuddy2api-python/issues"
+Changelog = "https://github.com/turbomind66/workbuddy2api-python/blob/main/CHANGELOG.md"
+
+[tool.setuptools]
+packages = ["wb2api", "wb2api.upstream"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
