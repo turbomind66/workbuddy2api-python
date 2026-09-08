@@ -1,0 +1,111 @@
+# ============================================================
+# 凭证 & 配置（⚠️ 绝对不要提交，泄露即账号被盗用）
+# ============================================================
+auths/
+auths/**
+config.json
+.env
+.env.*
+!.env.example
+*.token
+*.credential
+workbuddy-*.json
+
+# ============================================================
+# 运行时数据
+# ============================================================
+data/
+*.baiduyun.uploading.cfg
+*.log
+*.log.*
+logs/
+state.json
+*.pid
+*.swp
+
+# ============================================================
+# Python
+# ============================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 虚拟环境
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# 测试 & 覆盖率
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# 类型检查 & Lint
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+
+# ============================================================
+# 编辑器 & 操作系统
+# ============================================================
+.idea/
+.vscode/*
+!.vscode/settings.json.example
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ============================================================
+# Go 原版构建产物（若把 Go 原版也放进来）
+# ============================================================
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+credit-go.exe
