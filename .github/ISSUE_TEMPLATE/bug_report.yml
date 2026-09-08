@@ -1,0 +1,87 @@
+name: 🐛 缺陷报告
+description: 报告一个功能异常或崩溃问题
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    value: |
+      感谢提交问题！提交前请先确认：
+      - 已使用最新代码（`git pull`）
+      - 已搜索 [已有 Issue](https://github.com/turbomind66/workbuddy2api-python/issues)
+      - **日志已脱敏**（删除 token、uid、手机号等敏感信息）
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 清晰描述遇到的问题
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 如何稳定复现这个问题？
+      placeholder: |
+        1. 执行命令 ...
+        2. 发送请求 ...
+        3. 出现错误 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      description: 你认为正确的表现应该是什么？
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 错误日志（已脱敏）
+      description: 完整堆栈或服务输出，**请务必删除 token / uid 等敏感信息**
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python 版本
+      placeholder: "3.11.9"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Docker
+        - 其他
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 项目版本 / commit
+      placeholder: "v1.0.0 或 commit hash"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: 确认项
+      options:
+        - label: 我已脱敏所有日志中的敏感信息
+          required: true
+        - label: 我使用的是最新代码
+          required: true
