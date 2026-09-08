@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build source package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m compileall -q cli wb2api
+
+      - name: Create archive
+        run: |
+          mkdir -p dist
+          zip -r dist/workbuddy2api-python-${GITHUB_REF_NAME}.zip \
+            cli wb2api scripts \
+            README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md LICENSE \
+            requirements.txt config.example.json pyproject.toml \
+            Dockerfile docker-compose.yml .env.example .editorconfig \
+            -x "*/__pycache__/*" "*.pyc"
+
+      - name: Generate release notes
+        run: |
+          echo "## 更新内容" > release-notes.md
+          echo "" >> release-notes.md
+          echo "详见 [CHANGELOG.md](./CHANGELOG.md)" >> release-notes.md
+          echo "" >> release-notes.md
+          echo "### 安装" >> release-notes.md
+          echo '```bash' >> release-notes.md
+          echo "pip install -r requirements.txt" >> release-notes.md
+          echo "cp config.example.json config.json" >> release-notes.md
+          echo "python cli/server.py -config config.json" >> release-notes.md
+          echo '```' >> release-notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          files: dist/*.zip
+          draft: false
+          prerelease: false
