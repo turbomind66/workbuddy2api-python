@@ -40,11 +40,23 @@ class Auth:
         return "cn"
 
     # ---- refresh 判定 ----
-    def needs_refresh(self, within: timedelta) -> bool:
-        """token 是否将在 within 内过期（或已过期/无 expiry）。"""
+    def needs_refresh(self, within) -> bool:
+        """token 是否将在 within 内过期（或已过期/无 expiry）。
+
+        within 兼容三种写法，避免调用方类型不一致：
+          - timedelta（推荐，如 timedelta(hours=2)）
+          - int/float 秒数（如 2 * 3600，对应 Go 原版 2 * time.Hour）
+          - None / 非法值 → 视为 0，退化为「已过期才刷新」
+        """
         if self.expires_at <= 0:
             return True
-        return int(time.time()) + int(within.total_seconds()) >= self.expires_at
+        if isinstance(within, timedelta):
+            secs = within.total_seconds()
+        elif isinstance(within, (int, float)):
+            secs = float(within)
+        else:
+            secs = 0.0
+        return int(time.time()) + int(secs) >= self.expires_at
 
     # ---- 解析 ----
     @staticmethod
