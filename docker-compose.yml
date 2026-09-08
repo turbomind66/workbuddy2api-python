@@ -1,0 +1,42 @@
+services:
+  workbuddy2api:
+    build: .
+    image: workbuddy2api-python:latest
+    container_name: workbuddy2api
+    restart: unless-stopped
+
+    # 如需对外暴露，改为 "0.0.0.0:7863:7863"（注意配合强 api_key）
+    ports:
+      - "127.0.0.1:7863:7863"
+
+    environment:
+      WB2A_LISTEN: ":7863"
+      WB2A_AUTH_DIR: "/app/auths"
+      WB2A_STATE_FILE: "/app/data/state.json"
+      # 建议把密钥放在 .env 中，此处仅作示例
+      # WB2A_API_KEY: "change-me"
+
+    env_file:
+      - path: .env
+        required: false
+
+    volumes:
+      # 凭证目录（宿主机先执行 cli/login.py 生成）
+      - ./auths:/app/auths:ro
+      # 账号池状态持久化
+      - ./data:/app/data
+      # 配置文件
+      - ./config.json:/app/config.json:ro
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7863/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
