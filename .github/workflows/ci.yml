@@ -47,6 +47,16 @@ jobs:
           print('import smoke test OK')
           "
 
+      - name: Logic smoke test (no network)
+        shell: bash
+        run: |
+          python scripts/smoke.py
+
+      - name: CLI dry-run test (no network)
+        shell: bash
+        run: |
+          python cli/signin.py --dry-run
+
   security:
     name: Secret & dependency scan
     runs-on: ubuntu-latest
