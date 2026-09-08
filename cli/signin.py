@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import time
+from datetime import timedelta
 from typing import List, Optional
 
 import requests
@@ -71,7 +72,7 @@ def main() -> int:
         r["nick"] = a.nickname
 
         # refresh 过期 token
-        if a.needs_refresh(2 * 3600):
+        if a.needs_refresh(timedelta(hours=2)):
             err = up.refresh_token(a)
             if err is not None:
                 if getattr(err, "kind", None) == ErrKind.SESSION_DEAD:
