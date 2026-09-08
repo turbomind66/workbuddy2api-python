@@ -49,11 +49,15 @@ jobs:
 
       - name: Logic smoke test (no network)
         shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
         run: |
           python scripts/smoke.py
 
       - name: CLI dry-run test (no network)
         shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
         run: |
           python cli/signin.py --dry-run
 
