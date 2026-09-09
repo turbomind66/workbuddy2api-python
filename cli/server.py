@@ -113,6 +113,7 @@ def main() -> int:
         sticky_count=sticky_count,
         redis_mode=redis_mode,
         soft_cooldown=cfg.SoftRateDur,
+        dump_dir=os.path.dirname(cfg.state_file) or ".",
     )
 
     stop_event = threading.Event()
