@@ -113,6 +113,41 @@ def main() -> int:
     check("BreakerCooldownDur 默认 30m", cfg.BreakerCooldownDur == timedelta(minutes=30))
     check("SessionTTL 默认 30m", cfg.SessionTTL == timedelta(minutes=30))
 
+    print("== 6. 路径锚定（projpath）==")
+    # 背景：CLI 从 cli/ 目录启动时，相对路径 ./auths 会解析成 cli/auths（不存在），
+    # 结果是「找不到账号」却毫无提示。所有入口必须统一走 wb2api.projpath。
+    import shutil
+    import tempfile
+
+    from wb2api import projpath
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    check("PROJECT_ROOT 指向项目根", os.path.abspath(projpath.PROJECT_ROOT) == os.path.abspath(root))
+    check("resolve 绝对路径原样返回", projpath.resolve("/abs/x") == "/abs/x")
+    check("resolve 相对路径锚定项目根",
+          projpath.resolve("auths") == os.path.join(projpath.PROJECT_ROOT, "auths"))
+    check("resolve 空串透传", projpath.resolve("") == "")
+
+    tmp = tempfile.mkdtemp(prefix="wb2api-smoke-")
+    try:
+        sub = os.path.join(tmp, "auths")
+        os.makedirs(sub, exist_ok=True)
+        cwd0 = os.getcwd()
+        try:
+            os.chdir(tmp)
+            got = projpath.resolve_path("auths", is_dir=True)
+            check("resolve_path cwd 存在则优先", os.path.abspath(got) == os.path.abspath(sub))
+            got2 = projpath.resolve_path("nope_dir", is_dir=True)
+            check("resolve_path cwd 不存在则回退项目根",
+                  got2 == os.path.join(projpath.PROJECT_ROOT, "nope_dir"))
+        finally:
+            os.chdir(cwd0)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    for name in ("server.py", "login.py", "credit.py", "signin.py"):
+        with open(os.path.join(root, "cli", name), "r", encoding="utf-8") as f:
+            check(f"cli/{name} 已接入路径锚定", "projpath" in f.read())
+
     if _failures:
         print(f"\nSMOKE_FAILED: {len(_failures)} 项未通过 -> {_failures}")
         return 1
