@@ -28,6 +28,8 @@
 - 上游 `400 / 415 / 422` 直接透传真实错误（保留 `code` / `msg` / `extError` / `requestId`），不再换号重试
 - `scripts/check_closures.py`：静态扫描闭包内「先读后写却未声明 nonlocal」的隐患（Go→Python 移植高频坑），已接入 CI
 - 未预期异常兜底：请求处理抛异常时补一个 `500 internal_error` JSON，而不是直接掐断连接
+- 上游 `400/415/422` 诊断：打印转发体摘要（`model`/顶层字段/**非标准字段**/消息角色/内容形态/`tools`/`stream_options`），
+  并把完整转发体写入 `data/last_bad_request.json`。上游 `extError.param` 常为空，只能靠对比 `UPSTREAM_PARAM_WHITELIST` 自查
 
 ## [1.0.1] - 2026-09-08
 
