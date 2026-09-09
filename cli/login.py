@@ -20,8 +20,10 @@ from typing import Any, Optional, Tuple
 
 import requests
 
-# 项目根：让 `--save` 的相对路径也锚定到项目根，避免从 cli/ 目录启动时写错位置。
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 将项目根目录加入 sys.path，保证 `py cli/login.py` 直接运行时可导入 wb2api 包。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from wb2api.projpath import resolve_path  # noqa: E402
 
 UPSTREAM_BASE_CN = "https://copilot.tencent.com"
 CLIENT_UA = "CLI/2.63.2 CodeBuddy/2.63.2"
@@ -183,9 +185,8 @@ def main() -> int:
     }
     print(json.dumps(out, ensure_ascii=False))
     if args.save:
-        save_dir = args.save
-        if not os.path.isabs(save_dir):
-            save_dir = os.path.join(PROJECT_ROOT, save_dir)
+        # 相对路径：cwd 优先（目录不存在时回退项目根），避免从 cli/ 启动时写错位置。
+        save_dir = resolve_path(args.save, is_dir=True)
         fp = save_nested(out, save_dir)
         if fp:
             print(f"login: 已保存凭证 -> {fp}", file=sys.stderr)
