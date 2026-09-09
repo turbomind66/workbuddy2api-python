@@ -14,6 +14,21 @@
 
 - CI 新增两阶段冒烟：逻辑冒烟（`scripts/smoke.py`）+ CLI dry-run（`cli/signin.py --dry-run`），覆盖此前漏测的 signin 路径
 
+## [1.0.2] - 2026-09-09
+
+### 修复
+
+- **上游 4xx 时请求线程崩溃**：`_chat_loop.fail()` 内对 `sticky_uid` 赋值却未声明 `nonlocal`，
+  读取时抛 `UnboundLocalError`，客户端只看到连接被重置（无任何 HTTP 响应）
+- 上游 `400 / 415 / 422` 参数错误仍会换号重试 3 次：请求体不变，换任何账号都会被同一条校验规则拒绝，
+  白烧额度且把真实原因（如 `model_param_invalid`）吞成 503
+
+### 新增
+
+- 上游 `400 / 415 / 422` 直接透传真实错误（保留 `code` / `msg` / `extError` / `requestId`），不再换号重试
+- `scripts/check_closures.py`：静态扫描闭包内「先读后写却未声明 nonlocal」的隐患（Go→Python 移植高频坑），已接入 CI
+- 未预期异常兜底：请求处理抛异常时补一个 `500 internal_error` JSON，而不是直接掐断连接
+
 ## [1.0.1] - 2026-09-08
 
 ### 修复
