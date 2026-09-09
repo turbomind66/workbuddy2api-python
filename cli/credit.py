@@ -11,10 +11,17 @@ import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-import requests
+# 将项目根目录加入 sys.path，保证 `py cli/credit.py` 直接运行时可导入 wb2api 包。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import requests  # noqa: E402
+
+from wb2api.projpath import PROJECT_ROOT, resolve_path  # noqa: E402
 
 BILLING_BASE_CN = "https://www.codebuddy.cn"
-AUTH_DIR = os.environ.get("WB2A_AUTH_DIR", "./auths")
+# auths 目录解析：绝对路径原样用；相对路径先看 cwd，找不到再回退到项目根。
+# 否则从 cli/ 目录启动时会去找 cli/auths（不存在），静默输出 0 账号。
+AUTH_DIR = resolve_path(os.environ.get("WB2A_AUTH_DIR", "auths"), is_dir=True)
 
 
 def _billing_headers(af: dict) -> dict:
@@ -142,6 +149,13 @@ def fetch_checkin_status(af: dict):
 def main() -> int:
     pretty = len(sys.argv) > 1 and sys.argv[1] in ("-pretty", "--pretty")
     files = sorted(glob.glob(os.path.join(AUTH_DIR, "workbuddy-*.json")))
+    if not files:
+        # 之前这里是静默输出 0 账号，用户完全无感，很难排查。
+        print(f"credit: 在 {AUTH_DIR} 下没有找到任何 workbuddy-*.json\n"
+              f"        项目根 = {PROJECT_ROOT}\n"
+              f"        请确认 auths/workbuddy-*.json 存在，或用 WB2A_AUTH_DIR 指定绝对路径",
+              file=sys.stderr)
+        return 1
 
     accounts: List[dict] = []
     for f in files:
