@@ -122,7 +122,11 @@ def main() -> int:
     from wb2api import projpath
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     check("PROJECT_ROOT 指向项目根", os.path.abspath(projpath.PROJECT_ROOT) == os.path.abspath(root))
-    check("resolve 绝对路径原样返回", projpath.resolve("/abs/x") == "/abs/x")
+    # 注意：不能用 "/abs/x" 当样例 —— Windows 上 Python 3.13 起 os.path.isabs("/x")
+    # 返回 False（有根但无盘符不再视为绝对路径），会导致该检查在 py3.13 上失败。
+    # 用 abspath 生成平台原生的绝对路径才是跨平台写法。
+    abs_p = os.path.abspath("wb2a_smoke_missing_file.tmp")
+    check("resolve 绝对路径原样返回", projpath.resolve(abs_p) == abs_p)
     check("resolve 相对路径锚定项目根",
           projpath.resolve("auths") == os.path.join(projpath.PROJECT_ROOT, "auths"))
     check("resolve 空串透传", projpath.resolve("") == "")
