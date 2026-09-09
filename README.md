@@ -299,6 +299,27 @@ docker compose logs -f
 </details>
 
 <details>
+<summary><b>返回 <code>400</code>，<code>message</code> 里带 <code>model_param_invalid</code> / <code>code=11133</code></b></summary>
+
+这是**上游模型拒绝了请求参数**（参数名/取值不被该模型接受），不是本服务的问题，也不是账号问题。
+
+返回体会原样透传上游的 `code`、`msg`、`extError` 与 `requestId`，例如：
+
+```json
+{"error": {"message": "code=11133 | Invalid request parameters | ext=model_param_invalid | the request parameters were rejected by the model | requestId=...",
+           "type": "api_error", "code": "11133"}}
+```
+
+处理方向：
+
+- 换一个模型试试（如 `hy3`、`hy4-preview` 对参数的支持范围不同）；
+- 检查请求体里是否带了上游不支持的字段（如某些 `temperature`/`top_p` 组合、`response_format`、工具定义等）；
+- 需要向上游反馈时，提供 `requestId` 即可。
+
+> 说明：`400 / 415 / 422` 属于「请求体本身不合法」，换任何账号都会被同一条校验规则拒绝，所以服务**不会**再换号重试，避免白烧额度。
+</details>
+
+<details>
 <summary><b><code>credit.py</code> 显示 <code>code=10085 请求不合法</code></b></summary>
 
 官方计费网关会校验 `User-Agent`，`python-requests` 默认 UA 会被拒绝。代码已统一设置合法 UA，正常会返回套餐余额。
