@@ -18,6 +18,7 @@ import requests
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from wb2api.auth import Auth
+from wb2api.projpath import PROJECT_ROOT, resolve_path
 from wb2api.upstream import Client, ErrKind
 
 AUTH_DIR = "auths"
@@ -40,14 +41,18 @@ def _short(s: str) -> str:
 def main() -> int:
     argv = [a for a in sys.argv[1:] if a not in ("--dry-run", "-n")]
     dry_run = any(a in ("--dry-run", "-n") for a in sys.argv[1:])
-    directory = argv[0] if argv else AUTH_DIR
+    # 相对目录先看 cwd，找不到再回退到项目根，避免从 cli/ 启动时找错地方。
+    directory = resolve_path(argv[0] if argv else AUTH_DIR, is_dir=True)
     files = sorted(glob.glob(os.path.join(directory, "workbuddy-*.json")))
     if not files:
+        hint = (f"no auth files in {directory}\n"
+                f"  项目根 = {PROJECT_ROOT}\n"
+                f"  请确认 auths/workbuddy-*.json 存在，或显式传入目录参数")
         if dry_run:
-            print(f"dry-run: no auth files in {directory} (nothing to do)")
+            print("dry-run: " + hint)
             return 0
-        print(f"no auth files in {directory}", file=sys.stderr)
-        sys.exit(1)
+        print(hint, file=sys.stderr)
+        return 1
 
     up = Client()
 
