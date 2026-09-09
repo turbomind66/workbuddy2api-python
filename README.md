@@ -316,7 +316,18 @@ docker compose logs -f
 - 检查请求体里是否带了上游不支持的字段（如某些 `temperature`/`top_p` 组合、`response_format`、工具定义等）；
 - 需要向上游反馈时，提供 `requestId` 即可。
 
-> 说明：`400 / 415 / 422` 属于「请求体本身不合法」，换任何账号都会被同一条校验规则拒绝，所以服务**不会**再换号重试，避免白烧额度。
+**定位是哪个字段**：上游的 `param` 字段经常为空（不告诉是哪个参数），所以服务会在每次 `400/415/422` 时：
+
+1. 打一行 `转发体摘要`，列出 `model`、全部顶层字段、**非标准字段**、消息角色、内容形态、`tools`/`stream_options` 等：
+
+   ```
+   upstream 400 转发体摘要: model='hy4-preview' | keys=[...] | ⚠非标准字段=['service_tier']
+   | roles=['developer','user'] | 形态=['content:string','content:text'] | stream_options={...}
+   ```
+
+2. 把完整转发体写到 `data/last_bad_request.json`（`data/` 已在 `.gitignore` 中，不会被提交）。
+
+先看摘要里的 **⚠非标准字段** 和 **roles** —— 前者是上游大概率不认识的字段，后者若出现 `developer` 等角色需要考虑归一化。
 </details>
 
 <details>
