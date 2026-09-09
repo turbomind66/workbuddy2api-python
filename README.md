@@ -285,7 +285,17 @@ docker compose logs -f
 <details>
 <summary><b>返回 <code>503</code> / <code>uid=-</code></b></summary>
 
-所有账号都在冷却 / 熔断中，或在途租约已满。访问 `/status` 可查看每个账号的实时状态，稍后重试即可。
+说明本次请求没能挑到任何可用账号。返回的 `message` 会直接给出具体原因，按提示处理即可：
+
+| `message` 前缀 | 含义 | 处理 |
+|---|---|---|
+| `no accounts loaded` | **账号池为空**，一个账号都没加载进来 | 检查 `config.json` 的 `auth_dir` 与 `auths/workbuddy-*.json` 是否存在 |
+| `all accounts disabled` | 全部账号已被禁用（凭证失效） | 重新执行 `login` 登录 |
+| `all accounts cooling` | 全部账号处于冷却 / 熔断中 | 访问 `/status` 看 `cool_remaining_sec`，等待自动恢复 |
+| `all accounts in-flight full` | 全部可用账号的并发已达上限 | 稍后重试，或调大 `pool.max_in_flight` |
+| `all accounts unavailable` | 其他混合原因 | 访问 `/status` 逐个排查 |
+
+> 提示：`config.json` 与 `auth_dir` 中的**相对路径均基于项目根目录**解析，因此从 `cli/` 等子目录启动服务也能正确定位。
 </details>
 
 <details>
