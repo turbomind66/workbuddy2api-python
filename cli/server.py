@@ -14,16 +14,8 @@ import threading
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
-
-def _resolve(p: str) -> str:
-    """把相对路径锚定到项目根，避免从 cli/ 目录启动时 auths/config 找错位置。"""
-    if not p:
-        return p
-    if os.path.isabs(p):
-        return p
-    return os.path.join(PROJECT_ROOT, p)
-
 from wb2api.auth import Auth
+from wb2api.projpath import resolve_path
 from wb2api.config import Config
 from wb2api.pool import Pool
 from wb2api.redisstore import Noop, new as redis_new
@@ -46,23 +38,26 @@ def main() -> int:
         stream=sys.stdout,
     )
 
-    # 配置文件不存在时给一次机会用纯默认 + env。
-    config_path = _resolve(args.config)
+    # 配置文件：相对路径先看 cwd，找不到再回退项目根。
+    config_path = resolve_path(args.config)
     try:
         cfg = Config.load(config_path)
     except FileNotFoundError:
-        LOG.warning("config %s not found, using defaults+env", args.config)
+        LOG.warning("config %s not found, using defaults+env", config_path)
         cfg = Config.load("")
     except Exception as e:  # noqa
         LOG.error("load config: %s", e)
         return 1
 
     # 相对路径统一锚定到项目根（auths / data 目录），避免从 cli/ 启动时加载 0 账号。
-    cfg.auth_dir = _resolve(cfg.auth_dir)
-    cfg.state_file = _resolve(cfg.state_file)
+    cfg.auth_dir = resolve_path(cfg.auth_dir, is_dir=True)
+    cfg.state_file = resolve_path(cfg.state_file)
 
     auths = Auth.load_dir(cfg.auth_dir, cfg.region)
     LOG.info("loaded %d %s account(s) from %s", len(auths), cfg.region, cfg.auth_dir)
+    if not auths:
+        LOG.warning("未加载到任何账号：请确认 %s 下存在 workbuddy-*.json（项目根=%s）",
+                    cfg.auth_dir, PROJECT_ROOT)
 
     # redisstore：未配置/连接失败 → Noop（纯内存模式，一切功能照常）。
     store = redis_new(cfg.Upstash.URL, cfg.Upstash.Token)
