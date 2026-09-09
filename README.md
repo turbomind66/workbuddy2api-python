@@ -181,6 +181,10 @@ curl -N http://127.0.0.1:7863/v1/chat/completions \
 > `credit.py` 优先查询账号**套餐余额**（个人体验版 / 权益赠送包等，对应 App 里「我的积分」）；
 > 仅当账号确实没有套餐时，才降级为查询签到活动积分（`total_credits`）。
 
+> **路径说明**：所有 CLI 的相对路径（`config.json`、`auths/`、`data/`、`--save`）都由
+> `wb2api/projpath.py` 统一解析 —— **先按当前目录找，找不到自动回退到项目根**。
+> 因此 `cd cli` 后直接 `server.py` / `credit.py` / `signin.py` 也能正确定位账号，不会加载 0 个账号。
+
 ---
 
 ## ⚙️ 配置说明
