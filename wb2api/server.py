@@ -409,11 +409,27 @@ class Handler(BaseHTTPRequestHandler):
                 rc.close()
                 release_held()
 
-        msg = "all accounts unavailable (cooling/disabled)"
-        if last_err is not None:
-            msg += ": " + str(last_err)
+        msg = self._diagnose_no_account(last_err)
         self._send_openai_error(503, "no_healthy_account", msg)
         st.status = 503
+
+    def _diagnose_no_account(self, last_err) -> str:
+        """选号失败时给出可操作的诊断信息，避免一律报 "cooling/disabled" 误导排查。"""
+        total, healthy, cooling, disabled, in_flight_full = self.cfg.pool.counts_detailed()
+        if total == 0:
+            msg = ("no accounts loaded: 账号池为空，检查 config.json 的 auth_dir "
+                   "（当前相对路径基于项目根）与 auths/workbuddy-*.json 是否存在")
+        elif disabled == total:
+            msg = "all accounts disabled: 全部账号已被禁用（凭证失效），需重新 login"
+        elif cooling == total:
+            msg = "all accounts cooling: 全部账号处于冷却/熔断中，稍后自动恢复，或访问 /status 查看剩余时间"
+        elif healthy > 0 and in_flight_full >= healthy:
+            msg = "all accounts in-flight full: 全部可用账号的并发已达上限，稍后重试"
+        else:
+            msg = "all accounts unavailable (cooling/disabled)"
+        if last_err is not None:
+            msg += ": " + str(last_err)
+        return msg
 
     def _apply_error_policy(self, uid: str, kind: ErrKind) -> None:
         cfg = self.cfg
