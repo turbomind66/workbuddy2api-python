@@ -27,6 +27,10 @@ DEFAULT_SOFT_COOLDOWN = timedelta(seconds=60)
 DEFAULT_REFRESH_SKEW = timedelta(minutes=10)
 DEFAULT_MAX_ROTATE = 3
 
+# 这些上游状态码属于「请求体本身不合法」，换号重试不会改变结果，
+# 直接透传上游错误，避免白烧 3 次额度且把真实原因（如 model_param_invalid）吞掉。
+_NO_ROTATE_STATUS = (400, 415, 422)
+
 # 静态 CN 模型表（API reference §5，动态接口失败时的回退）。
 STATIC_MODELS = [
     {"id": "glm-5.2", "object": "model", "created": 1753600000, "owned_by": "workbuddy", "context_length": 131072},
@@ -148,9 +152,14 @@ def _uid_prefix(uid: str) -> str:
 class Handler(BaseHTTPRequestHandler):
     cfg: Config = None  # type: ignore
     protocol_version = "HTTP/1.1"
+    _headers_sent = False  # 是否已发出响应头（决定异常时能否补一个 500）
 
     def log_message(self, fmt, *args):  # 静默默认访问日志
         return
+
+    def send_response(self, code, message=None):
+        self._headers_sent = True
+        super().send_response(code, message)
 
     def handle(self):
         # 客户端在请求任意阶段断开（WinError 10053/10054 等）时静默关闭连接，
@@ -159,6 +168,16 @@ class Handler(BaseHTTPRequestHandler):
             super().handle()
         except ConnectionError:
             self.close_connection = True
+        except Exception:
+            # 未预期异常：补一个 500 JSON，而不是直接掐断连接让客户端只看到
+            # "连接被重置"；traceback 仍打日志便于定位。
+            LOG.exception("unhandled error serving %s", self.path)
+            self.close_connection = True
+            try:
+                if not self._headers_sent:
+                    self._send_openai_error(500, "internal_error", "internal server error")
+            except Exception:  # noqa
+                pass
 
     # ---- 路由 ----
     def do_GET(self):
@@ -206,6 +225,33 @@ class Handler(BaseHTTPRequestHandler):
 
     def _send_openai_error(self, status: int, code: str, msg: str) -> None:
         self._send_json(status, {"error": {"message": msg, "type": "api_error", "code": code}})
+
+    def _send_upstream_error(self, status: int, body_txt: str) -> None:
+        """把上游业务错误以 OpenAI 错误格式透传，尽量保留 code/msg/ext/requestId。"""
+        code = "upstream_error"
+        msg = (body_txt or "").strip()[:2000] or f"upstream http {status}"
+        try:
+            env = json.loads(body_txt)
+        except (ValueError, TypeError):
+            env = None
+        if isinstance(env, dict):
+            parts: List[str] = []
+            if env.get("code") is not None:
+                code = str(env["code"])
+                parts.append(f"code={env['code']}")
+            if env.get("msg"):
+                parts.append(str(env["msg"]))
+            ext = env.get("extError")
+            if isinstance(ext, dict):
+                if ext.get("code"):
+                    parts.append(f"ext={ext['code']}")
+                if ext.get("message"):
+                    parts.append(str(ext["message"]))
+            if env.get("requestId"):
+                parts.append(f"requestId={env['requestId']}")
+            if parts:
+                msg = " | ".join(parts)
+        self._send_openai_error(status, code, msg)
 
     # ---- 端点 ----
     def healthz(self):
@@ -315,6 +361,9 @@ class Handler(BaseHTTPRequestHandler):
                 held_uid = ""
 
         def fail(uid):
+            # sticky_uid 在下面被重新赋值，必须声明 nonlocal，否则它会被视为 fail()
+            # 的局部变量，上一行的读取将抛 UnboundLocalError（Python 闭包作用域陷阱）。
+            nonlocal sticky_uid
             release_held()
             if sticky_uid and uid == sticky_uid and cfg.session is not None:
                 cfg.session.unbind(sess_key)
@@ -367,10 +416,19 @@ class Handler(BaseHTTPRequestHandler):
                 continue
             if status >= 400:
                 st.status = status
-                kind = classify(status, resp_body.decode("utf-8", "replace") if resp_body else "")
-                last_err = upstream.Error(kind, status, resp_body.decode("utf-8", "replace")[:200]
-                                          if resp_body else "")
+                body_txt = resp_body.decode("utf-8", "replace") if resp_body else ""
+                kind = classify(status, body_txt)
+                last_err = upstream.Error(kind, status, body_txt[:200])
                 self._apply_error_policy(acct.uid, kind)
+                # 请求体级别的参数错误（400/415/422）换号重试毫无意义：请求体不变，
+                # 换任何账号都会被同一条上游校验规则拒绝。直接把上游原始错误透传，
+                # 既省额度也让客户端看到真实原因（如 model_param_invalid）。
+                if kind == ErrKind.CLIENT and status in _NO_ROTATE_STATUS:
+                    LOG.warning("chat uid=%s: upstream %d 参数错误，停止换号重试并透传：%s",
+                                _uid_prefix(acct.uid), status, body_txt[:300])
+                    release_held()
+                    self._send_upstream_error(status, body_txt)
+                    return
                 fail(acct.uid)
                 continue
 
