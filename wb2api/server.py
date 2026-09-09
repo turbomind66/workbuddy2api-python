@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 import threading
 import time
@@ -57,7 +58,8 @@ _models_last_fail: Optional[datetime] = None
 class Config:
     def __init__(self, pool=None, upstream=None, api_key="",
                  session=None, sticky_count=None, redis_mode=None,
-                 soft_cooldown=None, refresh_skew=None, max_rotate=None) -> None:
+                 soft_cooldown=None, refresh_skew=None, max_rotate=None,
+                 dump_dir="") -> None:
         self.pool: Optional[Pool] = pool
         self.upstream: Optional[Client] = upstream
         self.api_key = api_key
@@ -67,6 +69,8 @@ class Config:
         self.redis_mode = redis_mode if redis_mode is not None else "noop"
         self.soft_cooldown = soft_cooldown if soft_cooldown is not None else DEFAULT_SOFT_COOLDOWN
         self.refresh_skew = refresh_skew if refresh_skew is not None else DEFAULT_REFRESH_SKEW
+        # 上游 4xx 时把转发体落盘的目录（空=只打日志不落盘）
+        self.dump_dir = dump_dir
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +148,66 @@ def _uid_prefix(uid: str) -> str:
     if not uid:
         return "-"
     return uid[:8] if len(uid) > 8 else uid
+
+
+# 上游 chat 接口预期支持的顶层参数。出现名单外的字段，通常就是被上游拒绝的原因
+# （上游报错 extError.param 经常为空，不给任何线索，只能靠对比名单自查）。
+UPSTREAM_PARAM_WHITELIST = {
+    "model", "messages", "stream", "temperature", "top_p", "max_tokens",
+    "stop", "n", "user", "tools", "tool_choice", "response_format",
+    "stream_options", "reasoning_effort", "reasoningEffort",
+    "frequency_penalty", "presence_penalty", "seed", "top_k",
+}
+
+
+def _summarize_body(obj: Dict[str, Any]) -> str:
+    """把转发体压成一行摘要：非标准字段 / 消息角色 / 内容形态 / 工具。"""
+    keys = sorted(obj.keys())
+    unknown = [k for k in keys if k not in UPSTREAM_PARAM_WHITELIST]
+
+    roles: List[str] = []
+    shapes: set = set()
+    msgs = obj.get("messages")
+    if isinstance(msgs, list):
+        for m in msgs:
+            if not isinstance(m, dict):
+                shapes.add("msg:非对象")
+                continue
+            roles.append(str(m.get("role", "?")))
+            c = m.get("content")
+            if isinstance(c, str):
+                shapes.add("content:string")
+            elif isinstance(c, list):
+                for part in c:
+                    if isinstance(part, dict):
+                        shapes.add("content:" + str(part.get("type", "?")))
+                    else:
+                        shapes.add("content:非对象")
+            elif c is None:
+                shapes.add("content:null")
+            else:
+                shapes.add("content:" + type(c).__name__)
+            for extra in ("tool_calls", "tool_call_id", "name", "reasoning_content"):
+                if extra in m:
+                    shapes.add("msg:" + extra)
+
+    parts = [f"model={obj.get('model')!r}", f"keys={keys}"]
+    if unknown:
+        parts.append(f"⚠非标准字段={unknown}")
+    parts.append(f"roles={roles}")
+    parts.append(f"形态={sorted(shapes)}")
+    tools = obj.get("tools")
+    if tools is not None:
+        parts.append(f"tools={len(tools) if isinstance(tools, list) else type(tools).__name__}")
+    if "tool_choice" in obj:
+        parts.append(f"tool_choice={obj['tool_choice']!r}")
+    if "stream_options" in obj:
+        parts.append(f"stream_options={obj['stream_options']!r}")
+    if "reasoning_effort" in obj:
+        parts.append(f"reasoning_effort={obj['reasoning_effort']!r}")
+    if "reasoningEffort" in obj:
+        parts.append(f"reasoningEffort={obj['reasoningEffort']!r}")
+    return " | ".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -225,6 +289,32 @@ class Handler(BaseHTTPRequestHandler):
 
     def _send_openai_error(self, status: int, code: str, msg: str) -> None:
         self._send_json(status, {"error": {"message": msg, "type": "api_error", "code": code}})
+
+    def _dump_bad_request(self, prepared: bytes, status: int) -> None:
+        """上游 4xx 时打印转发体摘要并落盘，用于定位被拒绝的参数。
+
+        上游 extError.param 经常为空（不告诉是哪个字段），只能靠对比
+        UPSTREAM_PARAM_WHITELIST 自查 + 人工查看完整转发体。
+        """
+        try:
+            obj = json.loads(prepared)
+        except (ValueError, TypeError):
+            return
+        if not isinstance(obj, dict):
+            return
+        LOG.warning("upstream %d 转发体摘要: %s", status, _summarize_body(obj))
+
+        d = getattr(self.cfg, "dump_dir", "") or ""
+        if not d:
+            return
+        try:
+            os.makedirs(d, exist_ok=True)
+            path = os.path.join(d, "last_bad_request.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(obj, f, ensure_ascii=False, indent=2)
+            LOG.warning("完整转发体已写入: %s", path)
+        except OSError as e:
+            LOG.warning("dump bad request failed: %s", e)
 
     def _send_upstream_error(self, status: int, body_txt: str) -> None:
         """把上游业务错误以 OpenAI 错误格式透传，尽量保留 code/msg/ext/requestId。"""
@@ -426,6 +516,7 @@ class Handler(BaseHTTPRequestHandler):
                 if kind == ErrKind.CLIENT and status in _NO_ROTATE_STATUS:
                     LOG.warning("chat uid=%s: upstream %d 参数错误，停止换号重试并透传：%s",
                                 _uid_prefix(acct.uid), status, body_txt[:300])
+                    self._dump_bad_request(up.prepare_body(body), status)
                     release_held()
                     self._send_upstream_error(status, body_txt)
                     return
