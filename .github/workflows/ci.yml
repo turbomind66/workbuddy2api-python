@@ -61,6 +61,13 @@ jobs:
         run: |
           python cli/signin.py --dry-run
 
+      - name: Closure scope check (UnboundLocalError guard)
+        shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          python scripts/check_closures.py wb2api cli scripts
+
   security:
     name: Secret & dependency scan
     runs-on: ubuntu-latest
