@@ -11,7 +11,17 @@ import sys
 import threading
 
 # 将项目根目录加入 sys.path，保证 `py cli/server.py` 直接运行时可导入 wb2api 包。
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, PROJECT_ROOT)
+
+
+def _resolve(p: str) -> str:
+    """把相对路径锚定到项目根，避免从 cli/ 目录启动时 auths/config 找错位置。"""
+    if not p:
+        return p
+    if os.path.isabs(p):
+        return p
+    return os.path.join(PROJECT_ROOT, p)
 
 from wb2api.auth import Auth
 from wb2api.config import Config
@@ -37,14 +47,19 @@ def main() -> int:
     )
 
     # 配置文件不存在时给一次机会用纯默认 + env。
+    config_path = _resolve(args.config)
     try:
-        cfg = Config.load(args.config)
+        cfg = Config.load(config_path)
     except FileNotFoundError:
         LOG.warning("config %s not found, using defaults+env", args.config)
         cfg = Config.load("")
     except Exception as e:  # noqa
         LOG.error("load config: %s", e)
         return 1
+
+    # 相对路径统一锚定到项目根（auths / data 目录），避免从 cli/ 启动时加载 0 账号。
+    cfg.auth_dir = _resolve(cfg.auth_dir)
+    cfg.state_file = _resolve(cfg.state_file)
 
     auths = Auth.load_dir(cfg.auth_dir, cfg.region)
     LOG.info("loaded %d %s account(s) from %s", len(auths), cfg.region, cfg.auth_dir)
