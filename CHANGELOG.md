@@ -30,6 +30,14 @@
 - 未预期异常兜底：请求处理抛异常时补一个 `500 internal_error` JSON，而不是直接掐断连接
 - 上游 `400/415/422` 诊断：打印转发体摘要（`model`/顶层字段/**非标准字段**/消息角色/内容形态/`tools`/`stream_options`），
   并把完整转发体写入 `data/last_bad_request.json`。上游 `extError.param` 常为空，只能靠对比 `UPSTREAM_PARAM_WHITELIST` 自查
+- `wb2api/projpath.py`：统一的路径锚定模块（绝对路径原样；相对路径先查 cwd、不存在则回退项目根），
+  四个 CLI 入口全部接入，从任意目录启动都能正确定位 `auths/` / `config.json` / `data/`
+
+### 修复
+
+- **`credit.py` / `signin.py` 从 `cli/` 目录运行时查不到账号**（静默输出 `accounts: []` / `账号: 0/0`）：
+  与 2026-09-09 修的 `server.py` 同源，上次只修了 `server.py` 和 `login.py`，漏了这两个入口
+- `credit.py` 找不到任何凭证时静默返回 0 账号；现在打印绝对路径 + 项目根提示，并以退出码 1 结束
 
 ## [1.0.1] - 2026-09-08
 
